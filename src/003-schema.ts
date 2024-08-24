@@ -1,8 +1,27 @@
+import { Schema } from "@effect/schema";
 import { Data, Effect } from "effect";
 
 // Custom error types
 class FetchError extends Data.TaggedError("FetchError") {}
-class ParseError extends Data.TaggedError("ParseError") {}
+class JsonError extends Data.TaggedError("JsonError") {}
+
+// Define schema for data we expect from the API
+// const TodoSchema = Schema.Struct({
+//   userId: Schema.Positive,
+//   id: Schema.Positive,
+//   title: Schema.String,
+//   completed: Schema.Boolean,
+// });
+
+class TodoSchema extends Schema.Class<TodoSchema>("Todo")({
+  userId: Schema.Positive,
+  id: Schema.Positive,
+  title: Schema.String,
+  completed: Schema.Boolean,
+}) {}
+
+// any `unknown` value will be decoded according to the schema
+const decodeTodo = Schema.decodeUnknown(TodoSchema);
 
 /**
  * Creating effect
@@ -16,7 +35,7 @@ const fetchRequest = Effect.tryPromise({
 const jsonResponse = (resp: Response) =>
   Effect.tryPromise({
     try: () => resp.json(),
-    catch: () => new ParseError(),
+    catch: () => new JsonError(),
   });
 
 // Using generators instead of pipe
@@ -26,14 +45,17 @@ const program = Effect.gen(function* () {
     return yield* new FetchError();
   }
 
-  return yield* jsonResponse(response);
+  const json = yield* jsonResponse(response);
+
+  return yield* decodeTodo(json);
 });
 
 // separte program definition from error handling
 const main = program.pipe(
   Effect.catchTags({
     FetchError: () => Effect.succeed("Something went wrong while fetching data"),
-    ParseError: () => Effect.succeed("Failed to parse JSON response"),
+    JsonError: () => Effect.succeed("Failed to parse JSON response"),
+    ParseError: () => Effect.succeed("Failed to parse response to Todo"),
   }),
 );
 
