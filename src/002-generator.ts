@@ -20,7 +20,7 @@ const jsonResponse = (resp: Response) =>
   });
 
 // Using generators instead of pipe
-const main = Effect.gen(function* () {
+const program = Effect.gen(function* () {
   const response = yield* fetchRequest;
   if (!response.ok) {
     return yield* new FetchError();
@@ -28,6 +28,14 @@ const main = Effect.gen(function* () {
 
   return yield* jsonResponse(response);
 });
+
+// separte program definition from error handling
+const main = program.pipe(
+  Effect.catchTags({
+    FetchError: () => Effect.succeed("Something went wrong while fetching data"),
+    ParseError: () => Effect.succeed("Failed to parse JSON response"),
+  }),
+);
 
 const result = await Effect.runPromise(main);
 result;
